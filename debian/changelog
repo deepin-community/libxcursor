@@ -1,3 +1,44 @@
+libxcursor (1:1.2.3-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+
+ -- Drew Parsons <dparsons@debian.org>  Sat, 11 Jan 2025 17:41:38 +0100
+
+libxcursor (1:1.2.2-1) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Debian Janitor ]
+  * Remove constraints unnecessary since buster:
+    + Build-Depends: Drop versioned constraint on dpkg-dev, libx11-dev,
+      libxfixes-dev, libxrender-dev and xutils-dev.
+  * Trim trailing whitespace.
+  * Add missing ${misc:Depends} to Depends for libxcursor1-udeb.
+  * Drop unnecessary dependency on dh-autoreconf.
+  * Replace XC-Package-Type with Package-Type.
+
+  [ Drew Parsons ]
+  * New upstream release
+  * Build-Depends: pkgconf not pkg-config
+  * Standards-Version: 4.7.0
+
+ -- Drew Parsons <dparsons@debian.org>  Sat, 01 Jun 2024 20:44:38 +0200
+
+libxcursor (1:1.2.1-1) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Timo Aaltonen ]
+  * control: Migrate to x11proto-dev.
+
+  [ Drew Parsons ]
+  * New upstream release.
+  * Standards-Version: 4.6.0
+  * debhelper compatibility level 13
+
+ -- Drew Parsons <dparsons@debian.org>  Wed, 27 Apr 2022 17:02:26 +0200
+
 libxcursor (1:1.2.0-2) unstable; urgency=medium
 
   * Team upload.
