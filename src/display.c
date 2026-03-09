@@ -1,4 +1,5 @@
 /*
+ * Copyright © 2024 Thomas E. Dickey
  * Copyright © 2002 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -23,6 +24,7 @@
 #include "xcursorint.h"
 #include <X11/Xlibint.h>
 #include <ctype.h>
+#include <unistd.h>		/* for getpid */
 
 static XcursorDisplayInfo *_XcursorDisplayInfo;
 
@@ -50,6 +52,8 @@ _XcursorCloseDisplay (Display *dpy, XExtCodes *codes)
 {
     XcursorDisplayInfo  *info, **prev;
 
+    (void) codes;	/* UNUSED */
+
     /*
      * Unhook from the global list
      */
@@ -70,20 +74,20 @@ _XcursorCloseDisplay (Display *dpy, XExtCodes *codes)
 static int
 _XcursorDefaultParseBool (char *v)
 {
-    char    c0, c1;
+    char    c0;
 
     c0 = *v;
     if (isupper ((int)c0))
-	c0 = tolower (c0);
+	c0 = (char) tolower (c0);
     if (c0 == 't' || c0 == 'y' || c0 == '1')
 	return 1;
     if (c0 == 'f' || c0 == 'n' || c0 == '0')
 	return 0;
     if (c0 == 'o')
     {
-	c1 = v[1];
+	char c1 = v[1];
 	if (isupper ((int)c1))
-	    c1 = tolower (c1);
+	    c1 = (char) tolower (c1);
 	if (c1 == 'n')
 	    return 1;
 	if (c1 == 'f')
@@ -136,6 +140,14 @@ _XcursorGetDisplayInfo (Display *dpy)
     (void) XESetCloseDisplay (dpy, info->codes->extension, _XcursorCloseDisplay);
 
     /*
+     * The debugging-trace for new info-blocks begins here.
+     * As a reminder that multiple processes/threads use this library,
+     * the current process-id is logged.
+     */
+    traceOpts((T_CALLED(_XcursorGetDisplayInfo) " info %p, pid %d\n",
+	      (void*)info, getpid()));
+
+    /*
      * Check whether the display supports the Render CreateCursor request
      */
     info->has_render_cursor = XcursorFalse;
@@ -151,6 +163,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 		v = XGetDefault (dpy, "Xcursor", "core");
 	    if (v && _XcursorDefaultParseBool (v) == 1)
 		info->has_render_cursor = XcursorFalse;
+	    traceOpts((T_OPTION(XCURSOR_CORE) ": %d\n", info->has_render_cursor));
 	}
 	if (info->has_render_cursor && (major > 0 || minor >= 8))
 	{
@@ -160,6 +173,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 		v = XGetDefault (dpy, "Xcursor", "anim");
 	    if (v && _XcursorDefaultParseBool (v) == 0)
 		info->has_anim_cursor = XcursorFalse;
+	    traceOpts((T_OPTION(XCURSOR_ANIM) ": %d\n", info->has_anim_cursor));
 	}
     }
 
@@ -173,6 +187,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 	v = XGetDefault (dpy, "Xcursor", "size");
     if (v)
 	info->size = atoi (v);
+    traceOpts((T_OPTION(XCURSOR_SIZE) ": %d\n", info->size));
 
     /*
      * Use the Xft size to guess a size; make cursors 16 "points" tall
@@ -185,6 +200,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 	    dpi = atoi (v);
 	if (dpi)
 	    info->size = dpi * 16 / 72;
+	traceOpts((T_OPTION(XCURSOR_SIZE) ": %d\n", info->size));
     }
 
     /*
@@ -203,10 +219,26 @@ _XcursorGetDisplayInfo (Display *dpy)
 	 * 16 pixels on a display of dimension 768
 	 */
 	info->size = dim / 48;
+	traceOpts((T_OPTION(XCURSOR_SIZE) ": %d\n", info->size));
     }
 
     info->theme = NULL;
     info->theme_from_config = NULL;
+
+    /*
+     * Provide for making cursors resized to match the requested size
+     */
+    info->resized_cursors = XcursorFalse;
+    v = getenv ("XCURSOR_RESIZED");
+    if (!v)
+	v = XGetDefault (dpy, "Xcursor", "resized");
+    if (v)
+    {
+	i = _XcursorDefaultParseBool (v);
+	if (i >= 0)
+	    info->resized_cursors = i;
+    }
+    traceOpts((T_OPTION(XCURSOR_RESIZED) ": %d\n", info->resized_cursors));
 
     /*
      * Get the desired theme
@@ -219,6 +251,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 	info->theme = strdup (v);
 	info->theme_from_config = strdup (v);
     }
+    traceOpts((T_OPTION(XCURSOR_THEME) ": %s\n", NonNull(info->theme)));
 
     /*
      * Get the desired dither
@@ -238,6 +271,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 	if (!strcmp (v, "diffuse"))
 	    info->dither = XcursorDitherDiffuse;
     }
+    traceOpts((T_OPTION(XCURSOR_DITHER) ": %d\n", info->dither));
 
     info->theme_core = False;
     /*
@@ -253,6 +287,7 @@ _XcursorGetDisplayInfo (Display *dpy)
 	if (i >= 0)
 	    info->theme_core = i;
     }
+    traceOpts((T_OPTION(XCURSOR_THEME_CORE) ": %d\n", info->theme_core));
 
     info->fonts = NULL;
     for (i = 0; i < NUM_BITMAPS; i++)
@@ -279,7 +314,7 @@ _XcursorGetDisplayInfo (Display *dpy)
     }
     _XUnlockMutex (_Xglobal_lock);
 
-    return info;
+    returnAddr(info);
 }
 
 XcursorBool
@@ -317,6 +352,27 @@ XcursorGetDefaultSize (Display *dpy)
     if (!info)
 	return 0;
     return info->size;
+}
+
+XcursorBool
+XcursorSetResizable (Display *dpy, XcursorBool flag)
+{
+    XcursorDisplayInfo	*info = _XcursorGetDisplayInfo (dpy);
+
+    if (!info)
+	return XcursorFalse;
+    info->resized_cursors = flag;
+    return XcursorTrue;
+}
+
+XcursorBool
+XcursorGetResizable (Display *dpy)
+{
+    XcursorDisplayInfo	*info = _XcursorGetDisplayInfo (dpy);
+
+    if (!info)
+	return 0;
+    return info->resized_cursors;
 }
 
 XcursorBool
@@ -363,7 +419,6 @@ XcursorGetThemeCore (Display *dpy)
     if (!info)
 	return XcursorFalse;
     return info->theme_core;
-
 }
 
 XcursorBool
